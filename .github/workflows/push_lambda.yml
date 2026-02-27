@@ -1,0 +1,86 @@
+## Made with ❤️ by Richard | With assistance from Co-pilot.
+## Description: GitHub Actions workflow to deploy an AWS Lambda function on push to the main branch. It checks for required secrets, validates AWS credentials, prepares a deployment package, and updates the Lambda function code.
+## Reason: The point of this project is not to learn or build pipelines it to learn about and connect Alexa (via Lambda) to my home assistant.
+
+name: Deploy Lambda on push
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ## AWS Environment Information
+      AWS_REGION: ${{ secrets.AWS_REGION }} ## Region must be region of lambda function.
+      LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }} ## Name of existing Lamdba to update.
+      ## AWS IAM: Identification and Authentication.
+      AWS_ID: ${{ secrets.AWS_ACCESS_KEY_ID }} ## Identification mechanism for AWS API access. | Key 1.
+      AWS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} ## Authentication mechanism for AWS API access. | Secret 1.
+      AWS_ID_2: ${{ secrets.AWS_ACCESS_KEY_ID_2 }} ## Identification mechanism for AWS API access. | Key 2.
+      AWS_KEY_2: ${{ secrets.AWS_SECRET_ACCESS_KEY_2 }} ## Authentication mechanism for AWS API access. | Secret 2.
+      ## Python Dependencies: List of Python packages required for the Lambda function, separated by commas.
+      Python_Dependences: ${{ secrets.PYTHON_DEPENDENCES }} ## Example: "name1, name2, name3".
+      ## Home Assistant : Authentication information.
+      HA_Token_1: ${{ secrets.HA_LONGLIFETOKEN_1}} ## Home Assistant API token for authentication. | Token 1 (primary).
+      HA_Token_2: ${{ secrets.HA_LONGLIFETOKEN_2}} ## Home Assistant API token for authentication. | Token 2 (backup).
+      ## Home Assistant : Access Information.
+      HA_URL: ${{ secrets.HA_ACCESSDOMAIN }} ## URL of the instance of home assistant. (Public or Local.)
+      HA_API_Path: ${{ secrets.HA_API_Path }} ## API path for Home Assistant (e.g., "/api/{information}/{path}").
+
+    steps:
+      - name: 🔐 1. Validate Secrets and Environment Variables
+        run: |
+          # Check for missing secrets
+          for s in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION LAMBDA_FUNCTION_NAME Python_Dependences; do
+            [ -z "${{ secrets[$s] }}" ] && m="$m $s"
+          done
+          [ -n "$m" ] && { echo "::error::Missing:$m"; exit 1; }
+          [ -z "${{ secrets.AWS_ACCESS_KEY_ID_2 }}" ] && echo "::warning::Secondary AWS creds missing"
+
+          # Validate secrets using Python
+          python3 -c "
+          import os, sys, re, json, base64
+          errors = []
+
+          # Validate Home Assistant tokens (JWTs)
+          try:
+              for token in filter(None, [os.getenv(k) for k in ('HA_Token_1', 'HA_Token_2', 'HA_LONGLIFETOKEN_1', 'HA_LONGLIFETOKEN_2')]):
+                  parts = token.split('.')
+                  if len(parts) != 3:
+                      errors.append(f'{token}: Invalid JWT format')
+                      continue
+                  payload = json.loads(base64.urlsafe_b64decode(parts[1] + '==').decode())
+                  exp = int(payload.get('exp', 0))
+                  if not (1767225600 <= exp <= 2082585600):
+                      errors.append(f'{token}: JWT exp out of range')
+          except Exception as e:
+              errors.append(f'JWT validation error: {e}')
+
+          # Validate HA_URL
+          ha_url = os.getenv('HA_URL', os.getenv('HA_ACCESSDOMAIN', ''))
+          if '.' not in ha_url and not re.fullmatch(r'\\d{1,3}(\\.\\d{1,3}){3}', ha_url):
+              errors.append('HA_URL must be a domain or valid IPv4 address')
+
+          # Validate HA_API_Path
+          if not str(os.getenv('HA_API_Path', '')).startswith('/'):
+              errors.append('HA_API_Path must start with "/"')
+
+          # Validate AWS credentials
+          aws_id = os.getenv('AWS_ACCESS_KEY_ID', '')
+          aws_secret = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+          if not re.fullmatch(r'[A-Z0-9]{20}', aws_id):
+              errors.append('AWS_ACCESS_KEY_ID must be 20 uppercase alphanumeric characters')
+          if not re.fullmatch(r'[A-Za-z0-9/+=]{40}', aws_secret):
+              errors.append('AWS_SECRET_ACCESS_KEY must be 40 base64-like characters')
+
+          # Output errors and exit if any
+          if errors:
+              print('Validation Errors:')
+              for error in errors:
+                  print(f'- {error}')
+              sys.exit(1)
+          else:
+              print('All secrets and environment variables validated successfully.')
+          "

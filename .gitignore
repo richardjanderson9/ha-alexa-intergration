@@ -1,0 +1,57 @@
+# -------------------------
+# Byte-compiled / cache
+# -------------------------
+__pycache__/
+*.py[cod]
+
+# -------------------------
+# Virtual environments
+# -------------------------
+.venv/
+venv/
+env/
+
+# -------------------------
+# Packaging / build artifacts
+# -------------------------
+build/
+dist/
+*.egg-info/
+
+# -------------------------
+# Deployment artifacts
+# (lambda package output)
+# -------------------------
+package/
+package.zip
+
+# -------------------------
+# Python cache files
+# -------------------------
+*.pyc
+
+# -------------------------
+# Testing & CI artifacts
+# -------------------------
+# Test files and test-related outputs
+*test*.py
+*test*.yml
+pytest_cache/
+.coverage
+
+# -------------------------
+# Local env / secrets
+# (keep out of VCS)
+# -------------------------
+.env
+.env.local
+.env.*.local
+secrets.*
+credentials
+
+# -------------------------
+# Editor & OS files
+# -------------------------
+.vscode/
+.idea/
+*.swp
