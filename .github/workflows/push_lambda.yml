@@ -47,24 +47,27 @@ jobs:
           aws configure set aws_secret_access_key $AWS_KEY
           aws configure set default.region $AWS_REGION
 
-      - name: 📦 Install Dependencies from Secret
+      - name: 📦 Install Dependencies and Prepare Package
         run: |
-          pip install $(echo "${Python_Dependences}" | tr ',' ' ')
-
-      - name: 🔑 Update Lambda Environment Variables with HA_* Secrets
-        run: |
-          aws lambda update-function-configuration \
-            --function-name $LAMBDA_FUNCTION_NAME \
-            --environment "Variables={HA_Token_1=$HA_Token_1,HA_Token_2=$HA_Token_2,HA_URL=$HA_URL,HA_API_Path=$HA_API_Path}" \
-            --region $AWS_REGION
+          # Ensure the package directory exists
+          mkdir -p package
+          
+          # Install dependencies into the package directory
+          echo "${Python_Dependences}" | tr ',' '\n' > requirements.txt
+          pip install -r requirements.txt -t ./package
+          
+          # Copy the Lambda function code into the package directory
+          cp -r src/* package/
 
       - name: ☁️ Deploy Lambda Function to AWS
         run: |
           set -e
-          pip install -qU pip
-          pip install $(echo "${Python_Dependences}" | tr ',' ' ') -t ./package
-          cd package && zip -qr ../lambda_deploy.zip . && cd ..
-          zip -qg lambda_deploy.zip lambda_function.py
+          # Create the deployment package
+          cd package
+          zip -r ../lambda_deploy.zip .
+          cd ..
+          
+          # Deploy the Lambda function
           aws lambda update-function-code \
             --function-name $LAMBDA_FUNCTION_NAME \
             --zip-file fileb://lambda_deploy.zip \
