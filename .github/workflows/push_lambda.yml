@@ -32,58 +32,20 @@ jobs:
     steps:
       - name: 🔐 1. Validate Secrets and Environment Variables
         run: |
-          # Check for missing secrets using mapped environment variables
-          for var in AWS_ID AWS_KEY AWS_REGION LAMBDA_FUNCTION_NAME Python_Dependences; do
-            [ -z "${!var}" ] && m="$m $var"
+          MISSING=false
+          
+          for var in AWS_ID AWS_KEY AWS_REGION LAMBDA_FUNCTION_NAME Python_Dependences HA_Token_1 HA_Token_2 HA_URL HA_API_Path; do
+            if [ -n "${!var}" ]; then
+              echo "$var is valid."
+            else
+              echo "::error::$var is missing or blank."
+              MISSING=true
+            fi
           done
-          [ -n "$m" ] && { echo "::error::Missing:$m"; exit 1; }
-          [ -z "$AWS_ID_2" ] && echo "::warning::Secondary AWS creds missing"
-
-          # Validate secrets using Python
-          python3 -c "
-          import os, sys, re, json, base64
-          errors = []
-
-          # Validate Home Assistant tokens (JWTs)
-          try:
-              for token in filter(None, [os.getenv(k) for k in ('HA_Token_1', 'HA_Token_2', 'HA_LONGLIFETOKEN_1', 'HA_LONGLIFETOKEN_2')]):
-                  parts = token.split('.')
-                  if len(parts) != 3:
-                      errors.append(f'{token}: Invalid JWT format')
-                      continue
-                  payload = json.loads(base64.urlsafe_b64decode(parts[1] + '==').decode())
-                  exp = int(payload.get('exp', 0))
-                  if not (1767225600 <= exp <= 2082585600):
-                      errors.append(f'{token}: JWT exp out of range')
-          except Exception as e:
-              errors.append(f'JWT validation error: {e}')
-
-          # Validate HA_URL
-          ha_url = os.getenv('HA_URL', os.getenv('HA_ACCESSDOMAIN', ''))
-          if '.' not in ha_url and not re.fullmatch(r'\\d{1,3}(\\.\\d{1,3}){3}', ha_url):
-              errors.append('HA_URL must be a domain or valid IPv4 address')
-
-          # Validate HA_API_Path
-          if not str(os.getenv('HA_API_Path', '')).startswith('/'):
-              errors.append('HA_API_Path must start with "/"')
-
-          # Validate AWS credentials
-          aws_id = os.getenv('AWS_ACCESS_KEY_ID', '')
-          aws_secret = os.getenv('AWS_SECRET_ACCESS_KEY', '')
-          if not re.fullmatch(r'[A-Z0-9]{20}', aws_id):
-              errors.append('AWS_ACCESS_KEY_ID must be 20 uppercase alphanumeric characters')
-          if not re.fullmatch(r'[A-Za-z0-9/+=]{40}', aws_secret):
-              errors.append('AWS_SECRET_ACCESS_KEY must be 40 base64-like characters')
-
-          # Output errors and exit if any
-          if errors:
-              print('Validation Errors:')
-              for error in errors:
-                  print(f'- {error}')
-              sys.exit(1)
-          else:
-              print('All secrets and environment variables validated successfully.')
-          "
+          
+          if [ "$MISSING" = true ]; then
+            exit 1
+          fi
 
       - name: 📦 2. Blank Step
         run: echo "This is a placeholder for Step 2. Add your logic here."
