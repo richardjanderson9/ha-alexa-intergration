@@ -30,7 +30,7 @@ jobs:
       HA_API_Path: ${{ secrets.HA_API_Path }} ## API path for Home Assistant (e.g., "/api/{information}/{path}").
 
     steps:
-      - name: 🔐 1. Validate Secrets and Environment Variables
+      - name: 🔐 Validate Secrets and Environment Variables
         run: |
           MISSING=false
           
@@ -47,5 +47,30 @@ jobs:
             exit 1
           fi
 
-      - name: 📦 2. Blank Step
-        run: echo "This is a placeholder for Step 2. Add your logic here."
+      - name: 🔍 Debug Python_Dependences
+        run: |
+          echo "Python_Dependences: ${Python_Dependences}"
+
+      - name: 🔑 Update Lambda Environment Variables with HA_* Secrets
+        run: |
+          aws lambda update-function-configuration \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --environment "Variables={HA_Token_1=$HA_Token_1,HA_Token_2=$HA_Token_2,HA_URL=$HA_URL,HA_API_Path=$HA_API_Path}" \
+            --region $AWS_REGION
+
+      - name: 📦 Install Dependencies from Secret
+        run: |
+          # Install dependencies directly from the Python_Dependences secret
+          pip install $(echo "${Python_Dependences}" | tr ',' ' ')
+
+      - name: ☁️ Deploy Lambda Function to AWS
+        run: |
+          set -e
+          pip install -qU pip
+          pip install $(echo "${Python_Dependences}" | tr ',' ' ') -t ./package
+          cd package && zip -qr ../lambda_deploy.zip . && cd ..
+          zip -qg lambda_deploy.zip lambda_function.py
+          aws lambda update-function-code \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --zip-file fileb://lambda_deploy.zip \
+            --region $AWS_REGION
