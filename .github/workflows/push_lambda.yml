@@ -32,12 +32,12 @@ jobs:
     steps:
       - name: 🔐 1. Validate Secrets and Environment Variables
         run: |
-          # Check for missing secrets
-          for s in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION LAMBDA_FUNCTION_NAME Python_Dependences; do
-            [ -z "${{ secrets[$s] }}" ] && m="$m $s"
+          # Check for missing secrets using mapped environment variables
+          for var in AWS_ID AWS_KEY AWS_REGION LAMBDA_FUNCTION_NAME Python_Dependences; do
+            [ -z "${!var}" ] && m="$m $var"
           done
           [ -n "$m" ] && { echo "::error::Missing:$m"; exit 1; }
-          [ -z "${{ secrets.AWS_ACCESS_KEY_ID_2 }}" ] && echo "::warning::Secondary AWS creds missing"
+          [ -z "$AWS_ID_2" ] && echo "::warning::Secondary AWS creds missing"
 
           # Validate secrets using Python
           python3 -c "
@@ -84,3 +84,6 @@ jobs:
           else:
               print('All secrets and environment variables validated successfully.')
           "
+
+      - name: 📦 2. Blank Step
+        run: echo "This is a placeholder for Step 2. Add your logic here."
