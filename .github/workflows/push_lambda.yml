@@ -72,3 +72,4 @@ jobs:
             --function-name $LAMBDA_FUNCTION_NAME \
             --zip-file fileb://lambda_deploy.zip \
             --region $AWS_REGION
+            
