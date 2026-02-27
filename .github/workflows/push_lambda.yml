@@ -26,6 +26,12 @@ jobs:
       HA_API_Path: ${{ secrets.HA_API_Path }}
 
     steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🗂️ List files for debugging
+        run: ls -lR
+
       - name: 🛠️ Validate Secrets and Environment Variables
         run: |
           MISSING=false
@@ -49,27 +55,18 @@ jobs:
 
       - name: 📦 Install Dependencies and Prepare Package
         run: |
-          # Ensure the package directory exists
           mkdir -p package
-          
-          # Install dependencies into the package directory
           echo "${Python_Dependences}" | tr ',' '\n' > requirements.txt
           pip install -r requirements.txt -t ./package
-          
-          # Copy the Lambda function code into the package directory
           cp -r src/* package/
 
       - name: ☁️ Deploy Lambda Function to AWS
         run: |
           set -e
-          # Create the deployment package
           cd package
           zip -r ../lambda_deploy.zip .
           cd ..
-          
-          # Deploy the Lambda function
           aws lambda update-function-code \
             --function-name $LAMBDA_FUNCTION_NAME \
             --zip-file fileb://lambda_deploy.zip \
             --region $AWS_REGION
-            
