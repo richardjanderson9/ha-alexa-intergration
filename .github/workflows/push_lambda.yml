@@ -1,6 +1,5 @@
 ## Made with ❤️ by Richard | With assistance from Co-pilot.
 ## Description: GitHub Actions workflow to deploy an AWS Lambda function on push to the main branch. It checks for required secrets, validates AWS credentials, prepares a deployment package, and updates the Lambda function code.
-## Reason: The point of this project is not to learn or build pipelines it to learn about and connect Alexa (via Lambda) to my home assistant.
 
 name: Deploy Lambda on push
 
@@ -13,43 +12,44 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ## AWS Environment Information
-      AWS_REGION: ${{ secrets.AWS_REGION }} ## Region must be region of lambda function.
-      LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }} ## Name of existing Lamdba to update.
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
       ## AWS IAM: Identification and Authentication.
-      AWS_ID: ${{ secrets.AWS_ACCESS_KEY_ID }} ## Identification mechanism for AWS API access. | Key 1.
-      AWS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} ## Authentication mechanism for AWS API access. | Secret 1.
-      AWS_ID_2: ${{ secrets.AWS_ACCESS_KEY_ID_2 }} ## Identification mechanism for AWS API access. | Key 2.
-      AWS_KEY_2: ${{ secrets.AWS_SECRET_ACCESS_KEY_2 }} ## Authentication mechanism for AWS API access. | Secret 2.
+      AWS_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       ## Python Dependencies: List of Python packages required for the Lambda function, separated by commas.
-      Python_Dependences: ${{ secrets.PYTHON_DEPENDENCES }} ## Example: "name1, name2, name3".
-      ## Home Assistant : Authentication information.
-      HA_Token_1: ${{ secrets.HA_LONGLIFETOKEN_1}} ## Home Assistant API token for authentication. | Token 1 (primary).
-      HA_Token_2: ${{ secrets.HA_LONGLIFETOKEN_2}} ## Home Assistant API token for authentication. | Token 2 (backup).
-      ## Home Assistant : Access Information.
-      HA_URL: ${{ secrets.HA_ACCESSDOMAIN }} ## URL of the instance of home assistant. (Public or Local.)
-      HA_API_Path: ${{ secrets.HA_API_Path }} ## API path for Home Assistant (e.g., "/api/{information}/{path}").
+      Python_Dependences: ${{ secrets.PYTHON_DEPENDENCES }}
+      ## Home Assistant: Authentication and Access Information.
+      HA_Token_1: ${{ secrets.HA_LONGLIFETOKEN_1 }}
+      HA_Token_2: ${{ secrets.HA_LONGLIFETOKEN_2 }}
+      HA_URL: ${{ secrets.HA_ACCESSDOMAIN }}
+      HA_API_Path: ${{ secrets.HA_API_Path }}
 
     steps:
-      - name: 🔐 Validate Secrets and Environment Variables
+      - name: 🛠️ Validate Secrets and Environment Variables
         run: |
           MISSING=false
-          
           for var in AWS_ID AWS_KEY AWS_REGION LAMBDA_FUNCTION_NAME Python_Dependences HA_Token_1 HA_Token_2 HA_URL HA_API_Path; do
-            if [ -n "${!var}" ]; then
-              echo "$var is valid."
-            else
+            if [ -z "${!var}" ]; then
               echo "::error::$var is missing or blank."
               MISSING=true
+            else
+              echo "$var is valid."
             fi
           done
-          
           if [ "$MISSING" = true ]; then
             exit 1
           fi
 
-      - name: 🔍 Debug Python_Dependences
+      - name: 🔑 Configure AWS CLI
         run: |
-          echo "Python_Dependences: ${Python_Dependences}"
+          aws configure set aws_access_key_id $AWS_ID
+          aws configure set aws_secret_access_key $AWS_KEY
+          aws configure set default.region $AWS_REGION
+
+      - name: 📦 Install Dependencies from Secret
+        run: |
+          pip install $(echo "${Python_Dependences}" | tr ',' ' ')
 
       - name: 🔑 Update Lambda Environment Variables with HA_* Secrets
         run: |
@@ -57,11 +57,6 @@ jobs:
             --function-name $LAMBDA_FUNCTION_NAME \
             --environment "Variables={HA_Token_1=$HA_Token_1,HA_Token_2=$HA_Token_2,HA_URL=$HA_URL,HA_API_Path=$HA_API_Path}" \
             --region $AWS_REGION
-
-      - name: 📦 Install Dependencies from Secret
-        run: |
-          # Install dependencies directly from the Python_Dependences secret
-          pip install $(echo "${Python_Dependences}" | tr ',' ' ')
 
       - name: ☁️ Deploy Lambda Function to AWS
         run: |
